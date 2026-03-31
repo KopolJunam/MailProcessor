@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "MailProcessor",
+  "version": "0.1.0",
+  "description": "Thunderbird add-on scaffold for MailProcessor.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "mailprocessor@kopolinfo.ch",
+      "strict_min_version": "128.0"
+    }
+  },
+  "permissions": [
+    "accountsRead",
+    "messagesRead",
+    "messagesUpdate",
+    "nativeMessaging"
+  ],
+  "background": {
+    "scripts": [
+      "dist/background.js"
+    ]
+  }
+}

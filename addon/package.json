@@ -1,0 +1,15 @@
+{
+  "name": "mailprocessor-addon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/background/index.ts --bundle --platform=browser --format=iife --outfile=dist/background.js",
+    "clean": "node -e \"import('node:fs').then(fs => fs.rmSync('dist', { recursive: true, force: true }))\""
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.2",
+    "typescript": "^5.8.3"
+  }
+}
+

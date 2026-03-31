@@ -1,0 +1,12 @@
+.gradle/
+build/
+out/
+
+node_modules/
+addon/dist/
+.native-host/
+.idea/
+*.iml
+
+.DS_Store
+Thumbs.db
