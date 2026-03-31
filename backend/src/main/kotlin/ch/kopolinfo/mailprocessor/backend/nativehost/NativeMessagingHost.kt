@@ -2,18 +2,19 @@ package ch.kopolinfo.mailprocessor.backend.nativehost
 
 import ch.kopolinfo.mailprocessor.backend.model.ClassificationRequest
 import ch.kopolinfo.mailprocessor.backend.rules.MailClassifier
+import kotlinx.serialization.json.Json
 import java.io.InputStream
 import java.io.OutputStream
-import kotlinx.serialization.json.Json
 
 class NativeMessagingHost(
     private val classifier: MailClassifier,
     private val codec: NativeMessagingCodec = NativeMessagingCodec(),
-    private val json: Json = Json {
-        encodeDefaults = true
-        ignoreUnknownKeys = true
-        explicitNulls = false
-    },
+    private val json: Json =
+        Json {
+            encodeDefaults = true
+            ignoreUnknownKeys = true
+            explicitNulls = false
+        },
 ) {
     fun run(
         input: InputStream = System.`in`,

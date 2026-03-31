@@ -11,9 +11,11 @@ private const val HEADER_LENGTH = 4
 class NativeMessagingCodec {
     fun readMessage(input: InputStream): String? {
         val header = input.readExactOrNull(HEADER_LENGTH) ?: return null
-        val messageLength = ByteBuffer.wrap(header)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .int
+        val messageLength =
+            ByteBuffer
+                .wrap(header)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .int
 
         require(messageLength >= 0) { "Native message length must not be negative" }
 
@@ -21,12 +23,17 @@ class NativeMessagingCodec {
         return payload.toString(Charsets.UTF_8)
     }
 
-    fun writeMessage(output: OutputStream, message: String) {
+    fun writeMessage(
+        output: OutputStream,
+        message: String,
+    ) {
         val payload = message.toByteArray(Charsets.UTF_8)
-        val header = ByteBuffer.allocate(HEADER_LENGTH)
-            .order(ByteOrder.LITTLE_ENDIAN)
-            .putInt(payload.size)
-            .array()
+        val header =
+            ByteBuffer
+                .allocate(HEADER_LENGTH)
+                .order(ByteOrder.LITTLE_ENDIAN)
+                .putInt(payload.size)
+                .array()
 
         output.write(header)
         output.write(payload)

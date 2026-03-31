@@ -11,13 +11,14 @@ class V1MailClassifierTest {
 
     @Test
     fun tagsConfiguredSender() {
-        val response = classifier.classify(
-            ClassificationRequest(
-                type = "classify-mail",
-                requestId = "request-1",
-                from = "Thomas.Maurer@ergon.ch",
+        val response =
+            classifier.classify(
+                ClassificationRequest(
+                    type = "classify-mail",
+                    requestId = "request-1",
+                    from = "Thomas.Maurer@ergon.ch",
+                ),
             )
-        )
 
         assertTrue(response.applyTag)
         assertEquals("\$label1", response.tagKey)
@@ -25,13 +26,14 @@ class V1MailClassifierTest {
 
     @Test
     fun ignoresOtherSenders() {
-        val response = classifier.classify(
-            ClassificationRequest(
-                type = "classify-mail",
-                requestId = "request-2",
-                from = "someone@example.invalid",
+        val response =
+            classifier.classify(
+                ClassificationRequest(
+                    type = "classify-mail",
+                    requestId = "request-2",
+                    from = "someone@example.invalid",
+                ),
             )
-        )
 
         assertFalse(response.applyTag)
         assertEquals(null, response.tagKey)
