@@ -6,7 +6,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 private const val DEFAULT_DATABASE_BASE_PATH = """N:\Privat\Administrativ\MailProcessor"""
-private const val DEFAULT_DATABASE_OPTIONS = ";AUTO_SERVER=TRUE"
+private const val DEFAULT_DATABASE_OPTIONS = ""
 
 data class DatabaseConfig(
     val basePath: String,

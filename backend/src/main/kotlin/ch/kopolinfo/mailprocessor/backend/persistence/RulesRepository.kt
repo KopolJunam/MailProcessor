@@ -12,6 +12,53 @@ data class RuleEntry(
 class RulesRepository(
     private val dsl: DSLContext,
 ) {
+    fun upsert(
+        addressPattern: String,
+        targetFolder: String,
+    ): RuleEntry {
+        val existing =
+            dsl
+                .select(
+                    RULES.ID,
+                    RULES.ADDRESS_PATTERN,
+                    RULES.TARGET_FOLDER,
+                ).from(RULES)
+                .where(RULES.ADDRESS_PATTERN.eq(addressPattern))
+                .orderBy(RULES.ID.asc())
+                .limit(1)
+                .fetchOne()
+
+        if (existing == null) {
+            return insert(
+                addressPattern = addressPattern,
+                targetFolder = targetFolder,
+            )
+        }
+
+        val existingEntry = existing.toRuleEntry()
+        if (existingEntry.targetFolder == targetFolder) {
+            return existingEntry
+        }
+
+        dsl
+            .update(RULES)
+            .set(RULES.TARGET_FOLDER, targetFolder)
+            .where(RULES.ID.eq(existingEntry.id))
+            .execute()
+
+        val updated =
+            dsl
+                .select(
+                    RULES.ID,
+                    RULES.ADDRESS_PATTERN,
+                    RULES.TARGET_FOLDER,
+                ).from(RULES)
+                .where(RULES.ID.eq(existingEntry.id))
+                .fetchOne() ?: error("Updated rule '$addressPattern' could not be reloaded")
+
+        return updated.toRuleEntry()
+    }
+
     fun insert(
         addressPattern: String,
         targetFolder: String,

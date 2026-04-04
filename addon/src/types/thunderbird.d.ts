@@ -8,20 +8,40 @@ interface RuntimePort {
   postMessage(message: unknown): void;
 }
 
-interface MessageUpdateProperties {
-  tags?: string[];
+interface MailIdentity {
+  email: string;
 }
 
-interface MailFolder {
-  path: string;
+interface MailAccount {
+  id: string;
+  identities: MailIdentity[];
 }
 
 interface ThunderbirdMessenger {
+  accounts: {
+    list(): Promise<MailAccount[]>;
+  };
+  folders: {
+    query(queryInfo?: { accountId?: string }): Promise<import("./protocol").MailFolder[]>;
+  };
   messages: {
     onNewMailReceived: {
-      addListener(listener: (folder: MailFolder, messages: import("./protocol").MessageList) => void): void;
+      addListener(listener: (folder: import("./protocol").MailFolder, messages: import("./protocol").MessageList) => void): void;
     };
-    update(messageId: number, newProperties: MessageUpdateProperties): Promise<void>;
+    onMoved: {
+      addListener(
+        listener: (
+          originalMessages: import("./protocol").MessageList,
+          movedMessages: import("./protocol").MessageList
+        ) => void
+      ): void;
+    };
+    query(queryInfo?: {
+      accountId?: string | string[];
+      folderId?: string | string[];
+      headerMessageId?: string;
+    }): Promise<import("./protocol").MessageList>;
+    move(messageIds: import("./protocol").MessageId[], destination: string): Promise<void>;
   };
   runtime: {
     connectNative(application: string): Promise<RuntimePort>;

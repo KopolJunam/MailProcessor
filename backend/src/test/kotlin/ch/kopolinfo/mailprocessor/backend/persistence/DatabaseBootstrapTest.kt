@@ -18,7 +18,7 @@ class DatabaseBootstrapTest {
 
         assertTrue(tempDirectory.resolve("MailProcessor.mv.db").exists())
         assertEquals(
-            "jdbc:h2:file:${databaseBasePath.replace("\\", "/")};AUTO_SERVER=TRUE",
+            "jdbc:h2:file:${databaseBasePath.replace("\\", "/")}",
             support.config.jdbcUrl,
         )
     }
@@ -28,7 +28,7 @@ class DatabaseBootstrapTest {
         val config = DatabaseBootstrap.createConfig("""N:\Privat\Administrativ\MailProcessor""")
 
         assertEquals(
-            """jdbc:h2:file:N:/Privat/Administrativ/MailProcessor;AUTO_SERVER=TRUE""",
+            """jdbc:h2:file:N:/Privat/Administrativ/MailProcessor""",
             config.jdbcUrl,
         )
     }

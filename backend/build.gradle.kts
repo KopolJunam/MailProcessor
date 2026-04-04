@@ -8,7 +8,7 @@ val configuredDbBasePath =
         .orElse(defaultDbBasePath)
         .get()
 val configuredJdbcUrl =
-    "jdbc:h2:file:${configuredDbBasePath.replace("\\", "/")};AUTO_SERVER=TRUE"
+    "jdbc:h2:file:${configuredDbBasePath.replace("\\", "/")}"
 
 plugins {
     kotlin("jvm") version "2.1.20"

@@ -12,7 +12,7 @@
   "permissions": [
     "accountsRead",
     "messagesRead",
-    "messagesUpdate",
+    "messagesMove",
     "nativeMessaging"
   ],
   "background": {
