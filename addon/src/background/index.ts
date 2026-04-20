@@ -11,6 +11,7 @@ import type { ClassificationRequest, LearnRuleRequest, LearningMode, MailFolder,
 const nativeClient = createNativeClient("mailprocessor.host");
 const TARGET_ACCOUNT_EMAIL = "thomas.maurer@ierax.ch";
 const CANDIDATES_FOLDER = "_Candidates";
+const REPROCESS_FOLDER = "_Reprocess";
 const USE_ADDRESS_FOLDER = "_UseAddress";
 const USE_DOMAIN_FOLDER = "_UseDomain";
 let requestCounter = 0;
@@ -46,8 +47,18 @@ function createLearnRuleRequest(message: MessageHeader, learningMode: LearningMo
 }
 
 async function processMessage(folder: MailFolder, message: MessageHeader): Promise<void> {
+  await classifyAndMoveMessage(folder, message, "new mail", false);
+}
+
+async function classifyAndMoveMessage(
+  folder: MailFolder,
+  message: MessageHeader,
+  trigger: "new mail" | "reprocessing",
+  resolveCurrentMessageId: boolean
+): Promise<void> {
   if (!isTargetAccountFolder(folder)) {
-    console.log("Skipping new mail outside target account", {
+    console.log("Skipping mail outside target account", {
+      trigger,
       folderName: folder.name,
       folderPath: folder.path,
       accountId: folder.accountId
@@ -56,7 +67,8 @@ async function processMessage(folder: MailFolder, message: MessageHeader): Promi
   }
 
   const request = createClassificationRequest(message);
-  console.log("Classifying new mail", {
+  console.log("Classifying mail", {
+    trigger,
     messageId: message.id,
     from: request.from,
     subject: request.subject,
@@ -64,12 +76,15 @@ async function processMessage(folder: MailFolder, message: MessageHeader): Promi
     folderPath: folder.path
   });
   const response = await nativeClient.classify(request);
+  const messageIdToMove = resolveCurrentMessageId ? await resolveMessageIdInFolder(message) : message.id;
   console.log("Classification result received", {
+    trigger,
     messageId: message.id,
+    messageIdToMove,
     from: request.from,
     targetFolder: response.targetFolder
   });
-  await moveMessageToFolder(folder, message.id, response.targetFolder);
+  await moveMessageToFolder(folder, messageIdToMove, response.targetFolder);
 }
 
 async function processMessageList(folder: MailFolder, messages: MessageList): Promise<void> {
@@ -128,9 +143,28 @@ async function processMovedMessages(originalMessages: MessageList, movedMessages
       toFolderPath: movedMessage.folder.path
     });
 
+    if (isReprocessingMove(movedMessage.folder)) {
+      try {
+        console.log("Reprocessing moved mail", {
+          movedMessageId: movedMessage.id,
+          fromFolderName: originalMessage.folder.name,
+          toFolderName: movedMessage.folder.name,
+          from: extractEmail(movedMessage.author),
+          subject: movedMessage.subject ?? ""
+        });
+        await classifyAndMoveMessage(movedMessage.folder, movedMessage, "reprocessing", true);
+      } catch (error) {
+        console.error("Failed to reprocess moved mail", {
+          messageId: movedMessage.id,
+          error: describeError(error)
+        });
+      }
+      continue;
+    }
+
     const learningMode = resolveLearningMode(originalMessage.folder, movedMessage.folder);
     if (learningMode == null) {
-      console.log("Moved mail does not match a learning transition", {
+      console.log("Moved mail does not match reprocessing or a learning transition", {
         movedMessageId: movedMessage.id,
         fromFolderName: originalMessage.folder.name,
         toFolderName: movedMessage.folder.name
@@ -191,6 +225,10 @@ async function resolveTargetAccountId(targetEmail: string): Promise<string> {
 
 function isTargetAccountFolder(folder: MailFolder): boolean {
   return targetAccountId != null && folder.accountId === targetAccountId;
+}
+
+function isReprocessingMove(destinationFolder: MailFolder): boolean {
+  return destinationFolder.name === REPROCESS_FOLDER;
 }
 
 function resolveLearningMode(originalFolder: MailFolder, destinationFolder: MailFolder): LearningMode | null {
