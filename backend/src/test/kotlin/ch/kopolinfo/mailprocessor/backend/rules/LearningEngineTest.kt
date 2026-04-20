@@ -33,6 +33,7 @@ class LearningEngineTest {
             )
 
         assertEquals("thomas.maurer@ergon.ch", response.createdPattern)
+        assertEquals("/Inbox", response.targetFolder)
         assertEquals(
             listOf("thomas.maurer@ergon.ch"),
             repository.findAll().map { it.addressPattern },
@@ -65,6 +66,7 @@ class LearningEngineTest {
             )
 
         assertEquals("*@ergon.ch", response.createdPattern)
+        assertEquals("/Inbox", response.targetFolder)
         assertEquals(
             listOf("*@ergon.ch"),
             repository.findAll().map { it.addressPattern },

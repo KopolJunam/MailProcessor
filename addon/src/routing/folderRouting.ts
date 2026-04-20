@@ -1,42 +1,43 @@
 import type { MailFolder, MessageHeader, MessageId } from "../types/protocol";
 
-const INBOX_TARGET = "Inbox";
+const CANONICAL_INBOX_TARGET = "/Inbox";
 
 export async function moveMessageToFolder(
   currentFolder: MailFolder,
   messageId: MessageId,
-  targetFolderName: string
+  targetFolderPath: string
 ): Promise<MailFolder> {
+  const normalizedTargetFolderPath = normalizeTargetFolderPath(targetFolderPath);
   console.log("Preparing to move message", {
     messageId,
     currentFolderName: currentFolder.name,
     currentFolderPath: currentFolder.path,
     currentFolderAccountId: currentFolder.accountId,
-    targetFolderName
+    targetFolderPath: normalizedTargetFolderPath
   });
 
   if (currentFolder.accountId == null) {
     throw new Error("Current folder has no accountId, cannot resolve destination folder");
   }
 
-  if (isAlreadyInTargetFolder(currentFolder, targetFolderName)) {
+  if (isAlreadyInTargetFolder(currentFolder, normalizedTargetFolderPath)) {
     console.log("Skipping move because message is already in target folder", {
       messageId,
       currentFolderName: currentFolder.name,
       currentFolderPath: currentFolder.path,
-      targetFolderName
+      targetFolderPath: normalizedTargetFolderPath
     });
     return currentFolder;
   }
 
-  const destinationFolder = await findDestinationFolder(currentFolder.accountId, targetFolderName);
+  const destinationFolder = await findDestinationFolder(currentFolder.accountId, normalizedTargetFolderPath);
   if (destinationFolder == null) {
-    throw new Error(`Could not find destination folder '${targetFolderName}' in account ${currentFolder.accountId}`);
+    throw new Error(`Could not find destination folder '${normalizedTargetFolderPath}' in account ${currentFolder.accountId}`);
   }
 
   console.log("Resolved destination folder", {
     messageId,
-    targetFolderName,
+    targetFolderPath: normalizedTargetFolderPath,
     destinationFolderId: destinationFolder.id,
     destinationFolderName: destinationFolder.name,
     destinationFolderPath: destinationFolder.path,
@@ -45,7 +46,7 @@ export async function moveMessageToFolder(
   await messenger.messages.move([messageId], destinationFolder.id);
   console.log("Move request finished", {
     messageId,
-    targetFolderName,
+    targetFolderPath: normalizedTargetFolderPath,
     destinationFolderId: destinationFolder.id
   });
   return destinationFolder;
@@ -110,31 +111,31 @@ export function delay(milliseconds: number): Promise<void> {
   });
 }
 
-async function findDestinationFolder(accountId: string, targetFolderName: string): Promise<MailFolder | null> {
+async function findDestinationFolder(accountId: string, targetFolderPath: string): Promise<MailFolder | null> {
   const folders = await messenger.folders.query({ accountId });
-  if (targetFolderName === INBOX_TARGET) {
+  if (targetFolderPath === CANONICAL_INBOX_TARGET) {
     const inboxFolder = folders.find((folder) => folder.specialUse?.includes("inbox"));
     if (inboxFolder != null) {
       return inboxFolder;
     }
   }
 
-  const matchingFolders = folders.filter((folder) => folder.name === targetFolderName);
-
-  if (matchingFolders.length === 0) {
-    return null;
-  }
-
-  return (
-    matchingFolders.find((folder) => folder.path === `/${targetFolderName}`) ??
-    matchingFolders.sort((left, right) => left.path.length - right.path.length)[0]
-  );
+  return folders.find((folder) => folder.path === targetFolderPath) ?? null;
 }
 
-function isAlreadyInTargetFolder(folder: MailFolder, targetFolderName: string): boolean {
-  if (targetFolderName === INBOX_TARGET && folder.specialUse?.includes("inbox")) {
+function isAlreadyInTargetFolder(folder: MailFolder, targetFolderPath: string): boolean {
+  if (targetFolderPath === CANONICAL_INBOX_TARGET && folder.specialUse?.includes("inbox")) {
     return true;
   }
 
-  return folder.name === targetFolderName || folder.path === `/${targetFolderName}`;
+  return folder.path === targetFolderPath;
+}
+
+function normalizeTargetFolderPath(targetFolderPath: string): string {
+  const trimmedTargetFolderPath = targetFolderPath.trim();
+  if (trimmedTargetFolderPath.length === 0) {
+    throw new Error("Target folder path must not be blank");
+  }
+
+  return trimmedTargetFolderPath.startsWith("/") ? trimmedTargetFolderPath : `/${trimmedTargetFolderPath}`;
 }

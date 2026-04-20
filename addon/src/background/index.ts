@@ -6,14 +6,22 @@ import {
   moveMessageToFolder,
   resolveMessageIdInFolder
 } from "../routing/folderRouting";
-import type { ClassificationRequest, LearnRuleRequest, LearningMode, MailFolder, MessageHeader, MessageList } from "../types/protocol";
+import type {
+  ClassificationRequest,
+  ClassificationResponse,
+  LearnRuleRequest,
+  LearningMode,
+  MailFolder,
+  MessageHeader,
+  MessageList
+} from "../types/protocol";
 
 const nativeClient = createNativeClient("mailprocessor.host");
 const TARGET_ACCOUNT_EMAIL = "thomas.maurer@ierax.ch";
-const CANDIDATES_FOLDER = "_Candidates";
-const REPROCESS_FOLDER = "_Reprocess";
-const USE_ADDRESS_FOLDER = "_UseAddress";
-const USE_DOMAIN_FOLDER = "_UseDomain";
+const CANDIDATES_FOLDER_NAME = "_Candidates";
+const REPROCESS_FOLDER_NAME = "_Reprocess";
+const USE_ADDRESS_FOLDER_NAME = "_UseAddress";
+const USE_DOMAIN_FOLDER_NAME = "_UseDomain";
 let requestCounter = 0;
 let targetAccountId: string | null = null;
 
@@ -47,23 +55,17 @@ function createLearnRuleRequest(message: MessageHeader, learningMode: LearningMo
 }
 
 async function processMessage(folder: MailFolder, message: MessageHeader): Promise<void> {
-  await classifyAndMoveMessage(folder, message, "new mail", false);
+  const response = await classifyMessage(folder, message, "new mail");
+  await moveClassifiedMessageImmediately(folder, message, response, "new mail");
 }
 
-async function classifyAndMoveMessage(
+async function classifyMessage(
   folder: MailFolder,
   message: MessageHeader,
-  trigger: "new mail" | "reprocessing",
-  resolveCurrentMessageId: boolean
-): Promise<void> {
+  trigger: "new mail" | "reprocessing"
+): Promise<ClassificationResponse> {
   if (!isTargetAccountFolder(folder)) {
-    console.log("Skipping mail outside target account", {
-      trigger,
-      folderName: folder.name,
-      folderPath: folder.path,
-      accountId: folder.accountId
-    });
-    return;
+    throw new Error(`Cannot classify mail outside target account for trigger '${trigger}'`);
   }
 
   const request = createClassificationRequest(message);
@@ -75,16 +77,37 @@ async function classifyAndMoveMessage(
     folderName: folder.name,
     folderPath: folder.path
   });
+
   const response = await nativeClient.classify(request);
-  const messageIdToMove = resolveCurrentMessageId ? await resolveMessageIdInFolder(message) : message.id;
   console.log("Classification result received", {
     trigger,
     messageId: message.id,
-    messageIdToMove,
     from: request.from,
     targetFolder: response.targetFolder
   });
+  return response;
+}
+
+async function moveClassifiedMessageImmediately(
+  folder: MailFolder,
+  message: MessageHeader,
+  response: ClassificationResponse,
+  trigger: "new mail" | "reprocessing"
+): Promise<void> {
+  const messageIdToMove = message.id;
+  console.log("Starting immediate move after classification", {
+    trigger,
+    originalMessageId: message.id,
+    messageIdToMove,
+    targetFolder: response.targetFolder
+  });
   await moveMessageToFolder(folder, messageIdToMove, response.targetFolder);
+  console.log("Mail move completed", {
+    trigger,
+    originalMessageId: message.id,
+    messageIdToMove,
+    targetFolder: response.targetFolder
+  });
 }
 
 async function processMessageList(folder: MailFolder, messages: MessageList): Promise<void> {
@@ -152,10 +175,23 @@ async function processMovedMessages(originalMessages: MessageList, movedMessages
           from: extractEmail(movedMessage.author),
           subject: movedMessage.subject ?? ""
         });
-        await classifyAndMoveMessage(movedMessage.folder, movedMessage, "reprocessing", true);
+        const response = await classifyMessage(movedMessage.folder, movedMessage, "reprocessing");
+        const result = await moveMessageToTargetAfterStabilization(movedMessage, response.targetFolder, "reprocessing");
+        console.log("Reprocessing completed", {
+          movedMessageId: movedMessage.id,
+          messageIdToMove: result.messageIdToMove,
+          targetFolder: result.targetFolder,
+          remainedInReprocess: result.targetFolder === movedMessage.folder.path
+        });
       } catch (error) {
         console.error("Failed to reprocess moved mail", {
           messageId: movedMessage.id,
+          fromFolderName: originalMessage.folder.name,
+          fromFolderPath: originalMessage.folder.path,
+          toFolderName: movedMessage.folder.name,
+          toFolderPath: movedMessage.folder.path,
+          from: extractEmail(movedMessage.author),
+          subject: movedMessage.subject ?? "",
           error: describeError(error)
         });
       }
@@ -179,7 +215,13 @@ async function processMovedMessages(originalMessages: MessageList, movedMessages
         from: extractEmail(movedMessage.author)
       });
       const response = await nativeClient.learn(createLearnRuleRequest(movedMessage, learningMode));
-      await moveLearnedMessageToTarget(movedMessage, response.targetFolder, response.createdPattern);
+      const result = await moveMessageToTargetAfterStabilization(movedMessage, response.targetFolder, "learning");
+      console.log("Learning move completed", {
+        movedMessageId: movedMessage.id,
+        createdPattern: response.createdPattern,
+        messageIdToMove: result.messageIdToMove,
+        targetFolder: result.targetFolder
+      });
     } catch (error) {
       console.error("Failed to learn routing rule", {
         messageId: movedMessage.id,
@@ -228,42 +270,57 @@ function isTargetAccountFolder(folder: MailFolder): boolean {
 }
 
 function isReprocessingMove(destinationFolder: MailFolder): boolean {
-  return destinationFolder.name === REPROCESS_FOLDER;
+  return destinationFolder.name === REPROCESS_FOLDER_NAME;
 }
 
 function resolveLearningMode(originalFolder: MailFolder, destinationFolder: MailFolder): LearningMode | null {
-  if (originalFolder.name !== CANDIDATES_FOLDER) {
+  if (originalFolder.name !== CANDIDATES_FOLDER_NAME) {
     return null;
   }
 
-  if (destinationFolder.name === USE_ADDRESS_FOLDER) {
+  if (destinationFolder.name === USE_ADDRESS_FOLDER_NAME) {
     return "use-address";
   }
 
-  if (destinationFolder.name === USE_DOMAIN_FOLDER) {
+  if (destinationFolder.name === USE_DOMAIN_FOLDER_NAME) {
     return "use-domain";
   }
 
   return null;
 }
 
-async function moveLearnedMessageToTarget(
+async function moveMessageToTargetAfterStabilization(
   movedMessage: MessageHeader,
   targetFolder: string,
-  createdPattern: string
-): Promise<void> {
+  operation: "learning" | "reprocessing"
+): Promise<{ messageIdToMove: number; targetFolder: string }> {
   if (movedMessage.folder?.id == null) {
-    throw new Error("Moved message has no folder metadata for post-learning move");
+    throw new Error(`Moved message has no folder metadata for post-${operation} move`);
   }
 
   if (movedMessage.folder.accountId == null) {
-    throw new Error("Moved message has no accountId for post-learning move verification");
+    throw new Error(`Moved message has no accountId for post-${operation} move verification`);
+  }
+
+  if (movedMessage.folder.path === targetFolder) {
+    console.log("Skipping follow-up move because message is already in target folder", {
+      operation,
+      movedMessageId: movedMessage.id,
+      targetFolder
+    });
+    return {
+      messageIdToMove: movedMessage.id,
+      targetFolder
+    };
   }
 
   if (movedMessage.headerMessageId == null) {
     await delay(1200);
-    await moveLearnedMessageOnce(movedMessage, targetFolder, createdPattern, 1);
-    return;
+    const destinationFolder = await moveMessageOnceAfterStabilization(movedMessage, targetFolder, operation, 1);
+    return {
+      messageIdToMove: movedMessage.id,
+      targetFolder: destinationFolder.path
+    };
   }
 
   for (let attempt = 1; attempt <= 6; attempt += 1) {
@@ -272,7 +329,8 @@ async function moveLearnedMessageToTarget(
       movedMessage.headerMessageId
     );
 
-    console.log("Waiting for learned message to stabilize", {
+    console.log("Waiting for message to stabilize before follow-up move", {
+      operation,
       movedMessageId: movedMessage.id,
       currentFolderName: currentLocation?.folder?.name,
       currentFolderPath: currentLocation?.folder?.path,
@@ -286,46 +344,54 @@ async function moveLearnedMessageToTarget(
         continue;
       }
 
-      console.log("Starting delayed follow-up move for learned message", {
+      console.log("Starting delayed follow-up move", {
+        operation,
         movedMessageId: movedMessage.id,
         currentFolderName: currentLocation.folder.name,
         currentFolderPath: currentLocation.folder.path,
         targetFolder,
         attempt
       });
-      const destinationFolder = await moveLearnedMessageOnce(currentLocation, targetFolder, createdPattern, attempt);
-      await verifyMessageReachedTarget(currentLocation, destinationFolder, targetFolder, attempt);
-      return;
+      const destinationFolder = await moveMessageOnceAfterStabilization(currentLocation, targetFolder, operation, attempt);
+      await verifyMessageReachedTarget(currentLocation, destinationFolder, targetFolder, operation, attempt);
+      return {
+        messageIdToMove: currentLocation.id,
+        targetFolder: destinationFolder.path
+      };
     }
 
     if (currentLocation?.folder != null) {
-      console.log("Learned message is not in learning folder anymore, skipping follow-up move", {
+      console.log("Message is no longer in staging folder, skipping follow-up move", {
+        operation,
         movedMessageId: movedMessage.id,
         currentFolderName: currentLocation.folder.name,
         currentFolderPath: currentLocation.folder.path,
         targetFolder,
         attempt
       });
-      return;
+      return {
+        messageIdToMove: currentLocation.id,
+        targetFolder: currentLocation.folder.path
+      };
     }
 
     await delay(500);
   }
 
-  throw new Error(`Message ${movedMessage.id} could not be located in the account after learning`);
+  throw new Error(`Message ${movedMessage.id} could not be located in the account after ${operation}`);
 }
 
-async function moveLearnedMessageOnce(
+async function moveMessageOnceAfterStabilization(
   movedMessage: MessageHeader,
   targetFolder: string,
-  createdPattern: string,
+  operation: "learning" | "reprocessing",
   attempt: number
 ): Promise<MailFolder> {
   const resolvedMessageId = await resolveMessageIdInFolder(movedMessage);
-  console.log("Learning completed, moving mail to target folder", {
+  console.log("Moving stabilized message to target folder", {
+    operation,
     movedMessageId: movedMessage.id,
     resolvedMessageId,
-    createdPattern,
     targetFolder,
     attempt
   });
@@ -336,6 +402,7 @@ async function verifyMessageReachedTarget(
   movedMessage: MessageHeader,
   destinationFolder: MailFolder,
   targetFolder: string,
+  operation: "learning" | "reprocessing",
   attempt: number
 ): Promise<void> {
   if (movedMessage.headerMessageId == null) {
@@ -345,15 +412,16 @@ async function verifyMessageReachedTarget(
   for (let verificationAttempt = 1; verificationAttempt <= 6; verificationAttempt += 1) {
     await delay(500);
 
-    const stillInLearningFolder = await findMessageInFolderByHeaderMessageId(movedMessage.folder!.id, movedMessage.headerMessageId);
+    const stillInStagingFolder = await findMessageInFolderByHeaderMessageId(movedMessage.folder!.id, movedMessage.headerMessageId);
     const foundInDestinationFolder = await findMessageInFolderByHeaderMessageId(destinationFolder.id, movedMessage.headerMessageId);
     const foundInAccount = await findMessageInAccountByHeaderMessageId(
       movedMessage.folder!.accountId!,
       movedMessage.headerMessageId
     );
 
-    if (stillInLearningFolder == null && foundInDestinationFolder != null) {
-      console.log("Post-learning move verified", {
+    if (stillInStagingFolder == null && foundInDestinationFolder != null) {
+      console.log("Follow-up move verified", {
+        operation,
         movedMessageId: movedMessage.id,
         destinationFolderName: destinationFolder.name,
         destinationFolderPath: destinationFolder.path,
@@ -364,8 +432,9 @@ async function verifyMessageReachedTarget(
       return;
     }
 
-    if (stillInLearningFolder == null && foundInAccount != null) {
-      console.log("Post-learning move verified outside destination folder query", {
+    if (stillInStagingFolder == null && foundInAccount != null) {
+      console.log("Follow-up move verified outside destination folder query", {
+        operation,
         movedMessageId: movedMessage.id,
         foundFolderName: foundInAccount.folder?.name,
         foundFolderPath: foundInAccount.folder?.path,
@@ -376,9 +445,10 @@ async function verifyMessageReachedTarget(
       return;
     }
 
-    console.log("Waiting for post-learning move to become visible", {
+    console.log("Waiting for follow-up move to become visible", {
+      operation,
       movedMessageId: movedMessage.id,
-      stillInLearningFolder: stillInLearningFolder != null,
+      stillInStagingFolder: stillInStagingFolder != null,
       foundInDestinationFolder: foundInDestinationFolder != null,
       foundInAccountFolderName: foundInAccount?.folder?.name,
       foundInAccountFolderPath: foundInAccount?.folder?.path,
@@ -390,7 +460,7 @@ async function verifyMessageReachedTarget(
     });
   }
 
-  throw new Error(`Message ${movedMessage.id} left the learning folder but could not be located after follow-up move`);
+  throw new Error(`Message ${movedMessage.id} left the staging folder but could not be located after ${operation} follow-up move`);
 }
 
 async function bootstrap(): Promise<void> {

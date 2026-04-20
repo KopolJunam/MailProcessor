@@ -5,7 +5,7 @@ import ch.kopolinfo.mailprocessor.backend.model.LearnRuleResponse
 import ch.kopolinfo.mailprocessor.backend.model.LearningMode
 import ch.kopolinfo.mailprocessor.backend.persistence.RulesRepository
 
-private const val INBOX_TARGET = "Inbox"
+private const val INBOX_TARGET = "/Inbox"
 
 class LearningEngine(
     private val rulesRepository: RulesRepository,

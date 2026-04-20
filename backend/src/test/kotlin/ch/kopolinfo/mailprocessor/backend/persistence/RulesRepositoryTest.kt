@@ -16,7 +16,7 @@ class RulesRepositoryTest {
         SqlSchemaInitializer().ensureExists(support.dsl)
         val repository = RulesRepository(support.dsl)
 
-        val inserted = repository.insert("*@gugus.ch", "Inbox")
+        val inserted = repository.insert("*@gugus.ch", "/Inbox")
         val rules = repository.findAll()
 
         assertEquals(1, inserted.id)
@@ -26,7 +26,7 @@ class RulesRepositoryTest {
                     id = inserted.id,
                     addressPattern = "*@gugus.ch",
                     subjectRegex = null,
-                    targetFolder = "Inbox",
+                    targetFolder = "/Inbox",
                 ),
             ),
             rules,
@@ -43,12 +43,28 @@ class RulesRepositoryTest {
         SqlSchemaInitializer().ensureExists(support.dsl)
         val repository = RulesRepository(support.dsl)
 
-        val inserted = repository.insert("alerts@example.invalid", "Invoices", subjectRegex = "Invoice\\s+#\\d+")
+        val inserted = repository.insert("alerts@example.invalid", "/Invoices", subjectRegex = "Invoice\\s+#\\d+")
 
         assertEquals("Invoice\\s+#\\d+", inserted.subjectRegex)
+        assertEquals("/Invoices", inserted.targetFolder)
         assertEquals(
             listOf("Invoice\\s+#\\d+"),
             repository.findAll().map { it.subjectRegex },
         )
+    }
+
+    @Test
+    fun normalizesLegacyTargetFolderWithoutLeadingSlash() {
+        val tempDirectory = Files.createTempDirectory("mailprocessor-rules-normalization-test")
+        val support =
+            DatabaseBootstrap.initialize(
+                tempDirectory.resolve("MailProcessor").absolutePathString(),
+            )
+        SqlSchemaInitializer().ensureExists(support.dsl)
+        val repository = RulesRepository(support.dsl)
+
+        val inserted = repository.insert("*@legacy.example", "Invoices/Neu")
+
+        assertEquals("/Invoices/Neu", inserted.targetFolder)
     }
 }

@@ -18,6 +18,7 @@ class RulesRepository(
         targetFolder: String,
         subjectRegex: String? = null,
     ): RuleEntry {
+        val normalizedTargetFolder = normalizeTargetFolder(targetFolder)
         val existing =
             dsl
                 .select(
@@ -41,18 +42,18 @@ class RulesRepository(
             return insert(
                 addressPattern = addressPattern,
                 subjectRegex = subjectRegex,
-                targetFolder = targetFolder,
+                targetFolder = normalizedTargetFolder,
             )
         }
 
         val existingEntry = existing.toRuleEntry()
-        if (existingEntry.targetFolder == targetFolder) {
+        if (existingEntry.targetFolder == normalizedTargetFolder) {
             return existingEntry
         }
 
         dsl
             .update(RULES)
-            .set(RULES.TARGET_FOLDER, targetFolder)
+            .set(RULES.TARGET_FOLDER, normalizedTargetFolder)
             .where(RULES.ID.eq(existingEntry.id))
             .execute()
 
@@ -75,11 +76,12 @@ class RulesRepository(
         targetFolder: String,
         subjectRegex: String? = null,
     ): RuleEntry {
+        val normalizedTargetFolder = normalizeTargetFolder(targetFolder)
         val record =
             dsl
                 .insertInto(RULES)
                 .columns(RULES.ADDRESS_PATTERN, RULES.SUBJECT_REGEX, RULES.TARGET_FOLDER)
-                .values(addressPattern, subjectRegex, targetFolder)
+                .values(addressPattern, subjectRegex, normalizedTargetFolder)
                 .returning(RULES.ID, RULES.ADDRESS_PATTERN, RULES.SUBJECT_REGEX, RULES.TARGET_FOLDER)
                 .fetchOne() ?: error("Insert into rules did not return a record")
 
@@ -104,4 +106,14 @@ class RulesRepository(
             subjectRegex = get(RULES.SUBJECT_REGEX),
             targetFolder = get(RULES.TARGET_FOLDER) ?: error("target_folder must not be null"),
         )
+
+    private fun normalizeTargetFolder(targetFolder: String): String {
+        val trimmedTargetFolder = targetFolder.trim()
+        require(trimmedTargetFolder.isNotEmpty()) { "targetFolder must not be blank" }
+        return if (trimmedTargetFolder.startsWith("/")) {
+            trimmedTargetFolder
+        } else {
+            "/$trimmedTargetFolder"
+        }
+    }
 }

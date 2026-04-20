@@ -6,3 +6,7 @@ create table if not exists rules (
 );
 
 alter table rules add column if not exists subject_regex varchar(1000);
+
+update rules
+set target_folder = concat('/', target_folder)
+where target_folder not like '/%';

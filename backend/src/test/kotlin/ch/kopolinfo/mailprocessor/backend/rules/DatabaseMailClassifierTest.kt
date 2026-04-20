@@ -19,8 +19,8 @@ class DatabaseMailClassifierTest {
             )
         SqlSchemaInitializer().ensureExists(support.dsl)
         val repository = RulesRepository(support.dsl)
-        repository.insert("*@ergon.ch", "DomainInbox")
-        repository.insert("thomas.maurer@ergon.ch", "Inbox")
+        repository.insert("*@ergon.ch", "/DomainInbox")
+        repository.insert("thomas.maurer@ergon.ch", "/Inbox")
 
         val classifier = DatabaseMailClassifier(repository)
 
@@ -34,7 +34,7 @@ class DatabaseMailClassifierTest {
                 ),
             )
 
-        assertEquals("Inbox", response.targetFolder)
+        assertEquals("/Inbox", response.targetFolder)
         assertEquals("thomas.maurer@ergon.ch", response.matchedRule)
     }
 
@@ -47,8 +47,8 @@ class DatabaseMailClassifierTest {
             )
         SqlSchemaInitializer().ensureExists(support.dsl)
         val repository = RulesRepository(support.dsl)
-        repository.insert("alerts@example.invalid", "Inbox", subjectRegex = "Invoice\\s+#\\d+")
-        repository.insert("alerts@example.invalid", "FallbackInbox")
+        repository.insert("alerts@example.invalid", "/Inbox", subjectRegex = "Invoice\\s+#\\d+")
+        repository.insert("alerts@example.invalid", "/FallbackInbox")
 
         val classifier = DatabaseMailClassifier(repository)
 
@@ -71,7 +71,7 @@ class DatabaseMailClassifierTest {
                 ),
             )
 
-        assertEquals("Inbox", matchingResponse.targetFolder)
-        assertEquals("FallbackInbox", nonMatchingResponse.targetFolder)
+        assertEquals("/Inbox", matchingResponse.targetFolder)
+        assertEquals("/FallbackInbox", nonMatchingResponse.targetFolder)
     }
 }

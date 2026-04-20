@@ -33,7 +33,7 @@ class RuleEngineTest {
                             if (request.from.endsWith("@example.invalid")) {
                                 RuleMatch(
                                     name = "example-domain",
-                                    targetFolder = "Inbox_",
+                                    targetFolder = "/Inbox_",
                                 )
                             } else {
                                 null
@@ -42,7 +42,7 @@ class RuleEngineTest {
                         MailRule {
                             RuleMatch(
                                 name = "late-rule",
-                                targetFolder = "Ignored_",
+                                targetFolder = "/Ignored_",
                             )
                         },
                     ),
@@ -58,7 +58,7 @@ class RuleEngineTest {
                 ),
             )
 
-        assertEquals("Inbox_", response.targetFolder)
+        assertEquals("/Inbox_", response.targetFolder)
         assertEquals("example-domain", response.matchedRule)
     }
 }

@@ -3,7 +3,7 @@ package ch.kopolinfo.mailprocessor.backend.rules
 import ch.kopolinfo.mailprocessor.backend.model.ClassificationRequest
 import ch.kopolinfo.mailprocessor.backend.model.ClassificationResponse
 
-const val FALLBACK = "_Candidates"
+const val FALLBACK = "/_Candidates"
 
 data class RuleMatch(
     val name: String,
