@@ -11,10 +11,14 @@
   },
   "permissions": [
     "accountsRead",
+    "alarms",
     "messagesRead",
     "messagesMove",
     "nativeMessaging"
   ],
+  "action": {
+    "default_title": "Ordner synchronisieren"
+  },
   "background": {
     "scripts": [
       "dist/background.js"

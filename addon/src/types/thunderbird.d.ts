@@ -17,9 +17,24 @@ interface MailAccount {
   identities: MailIdentity[];
 }
 
+interface Alarm {
+  name: string;
+}
+
 interface ThunderbirdMessenger {
   accounts: {
     list(): Promise<MailAccount[]>;
+  };
+  action: {
+    onClicked: {
+      addListener(listener: () => void): void;
+    };
+  };
+  alarms: {
+    create(name: string, alarmInfo: { periodInMinutes?: number }): void;
+    onAlarm: {
+      addListener(listener: (alarm: Alarm) => void): void;
+    };
   };
   folders: {
     query(queryInfo?: { accountId?: string }): Promise<import("./protocol").MailFolder[]>;
@@ -41,6 +56,7 @@ interface ThunderbirdMessenger {
       folderId?: string | string[];
       headerMessageId?: string;
     }): Promise<import("./protocol").MessageList>;
+    continueList(listId: string): Promise<import("./protocol").MessageList>;
     move(messageIds: import("./protocol").MessageId[], destination: string): Promise<void>;
   };
   runtime: {
