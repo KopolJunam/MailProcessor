@@ -17,6 +17,7 @@ data class LearnRuleRequest(
     val requestId: String,
     val from: String,
     val learningMode: LearningMode,
+    val targetFolder: String,
 )
 
 @Serializable

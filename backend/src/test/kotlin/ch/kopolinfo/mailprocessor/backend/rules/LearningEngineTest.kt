@@ -29,6 +29,7 @@ class LearningEngineTest {
                     requestId = "request-1",
                     from = "Thomas.Maurer@ergon.ch",
                     learningMode = LearningMode.USE_ADDRESS,
+                    targetFolder = "/Inbox",
                 ),
             )
 
@@ -62,6 +63,7 @@ class LearningEngineTest {
                     requestId = "request-2",
                     from = "Thomas.Maurer@ergon.ch",
                     learningMode = LearningMode.USE_DOMAIN,
+                    targetFolder = "/Inbox",
                 ),
             )
 
@@ -74,6 +76,36 @@ class LearningEngineTest {
         assertEquals(
             listOf<String?>(null),
             repository.findAll().map { it.subjectRegex },
+        )
+    }
+
+    @Test
+    fun createsAddressRuleForCustomNewsletterTarget() {
+        val tempDirectory = Files.createTempDirectory("mailprocessor-learning-newsletter-test")
+        val support =
+            DatabaseBootstrap.initialize(
+                tempDirectory.resolve("MailProcessor").absolutePathString(),
+            )
+        SqlSchemaInitializer().ensureExists(support.dsl)
+        val repository = RulesRepository(support.dsl)
+        val engine = LearningEngine(repository)
+
+        val response =
+            engine.learn(
+                LearnRuleRequest(
+                    type = "learn-rule",
+                    requestId = "request-3",
+                    from = "newsletter@example.invalid",
+                    learningMode = LearningMode.USE_ADDRESS,
+                    targetFolder = "/Newsletter/Unwichtig",
+                ),
+            )
+
+        assertEquals("newsletter@example.invalid", response.createdPattern)
+        assertEquals("/Newsletter/Unwichtig", response.targetFolder)
+        assertEquals(
+            listOf("/Newsletter/Unwichtig"),
+            repository.findAll().map { it.targetFolder },
         )
     }
 }

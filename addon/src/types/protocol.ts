@@ -12,6 +12,7 @@ export interface LearnRuleRequest {
   requestId: string;
   from: string;
   learningMode: LearningMode;
+  targetFolder: string;
 }
 
 export interface ClassificationResponse {

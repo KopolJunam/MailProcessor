@@ -5,8 +5,6 @@ import ch.kopolinfo.mailprocessor.backend.model.LearnRuleResponse
 import ch.kopolinfo.mailprocessor.backend.model.LearningMode
 import ch.kopolinfo.mailprocessor.backend.persistence.RulesRepository
 
-private const val INBOX_TARGET = "/Inbox"
-
 class LearningEngine(
     private val rulesRepository: RulesRepository,
 ) {
@@ -21,13 +19,13 @@ class LearningEngine(
         rulesRepository.upsert(
             addressPattern = createdPattern,
             subjectRegex = null,
-            targetFolder = INBOX_TARGET,
+            targetFolder = request.targetFolder,
         )
 
         return LearnRuleResponse(
             requestId = request.requestId,
             createdPattern = createdPattern,
-            targetFolder = INBOX_TARGET,
+            targetFolder = request.targetFolder,
         )
     }
 

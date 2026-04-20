@@ -15,6 +15,11 @@ const TARGET_ACCOUNT_EMAIL = "thomas.maurer@ierax.ch";
 const REPROCESS_FOLDER_NAME = "_Reprocess";
 const USE_ADDRESS_FOLDER_NAME = "_UseAddress";
 const USE_DOMAIN_FOLDER_NAME = "_UseDomain";
+const NEWSLETTER_HIGH_FOLDER_NAME = "_Newsletter_high";
+const NEWSLETTER_LOW_FOLDER_NAME = "_Newsletter_low";
+const INBOX_TARGET_FOLDER = "/Inbox";
+const NEWSLETTER_TARGET_FOLDER = "/Newsletter";
+const NEWSLETTER_LOW_TARGET_FOLDER = "/Newsletter/Unwichtig";
 const STAGING_SWEEP_ALARM_NAME = "process-staging-folders";
 const STAGING_SWEEP_PERIOD_MINUTES = 1;
 
@@ -42,12 +47,13 @@ function createClassificationRequest(message: MessageHeader): ClassificationRequ
   };
 }
 
-function createLearnRuleRequest(message: MessageHeader, learningMode: LearningMode): LearnRuleRequest {
+function createLearnRuleRequest(message: MessageHeader, learningMode: LearningMode, targetFolder: string): LearnRuleRequest {
   return {
     type: "learn-rule",
     requestId: nextRequestId(),
     from: extractEmail(message.author),
-    learningMode
+    learningMode,
+    targetFolder
   };
 }
 
@@ -115,6 +121,8 @@ async function runStagingSweep(trigger: "alarm" | "manual" | "startup"): Promise
     const folders = await messenger.folders.query({ accountId: targetAccountId });
     await processStagingFolderByName(folders, USE_ADDRESS_FOLDER_NAME, trigger);
     await processStagingFolderByName(folders, USE_DOMAIN_FOLDER_NAME, trigger);
+    await processStagingFolderByName(folders, NEWSLETTER_HIGH_FOLDER_NAME, trigger);
+    await processStagingFolderByName(folders, NEWSLETTER_LOW_FOLDER_NAME, trigger);
     await processStagingFolderByName(folders, REPROCESS_FOLDER_NAME, trigger);
     console.log("Staging sweep completed", { trigger });
   } catch (error) {
@@ -161,12 +169,22 @@ async function processStagingFolderByName(
       }
 
       if (folder.name === USE_ADDRESS_FOLDER_NAME) {
-        await processLearningMessage(folder, message, "use-address", trigger);
+        await processLearningMessage(folder, message, "use-address", INBOX_TARGET_FOLDER, trigger);
         continue;
       }
 
       if (folder.name === USE_DOMAIN_FOLDER_NAME) {
-        await processLearningMessage(folder, message, "use-domain", trigger);
+        await processLearningMessage(folder, message, "use-domain", INBOX_TARGET_FOLDER, trigger);
+        continue;
+      }
+
+      if (folder.name === NEWSLETTER_HIGH_FOLDER_NAME) {
+        await processLearningMessage(folder, message, "use-address", NEWSLETTER_TARGET_FOLDER, trigger);
+        continue;
+      }
+
+      if (folder.name === NEWSLETTER_LOW_FOLDER_NAME) {
+        await processLearningMessage(folder, message, "use-address", NEWSLETTER_LOW_TARGET_FOLDER, trigger);
       }
     } catch (error) {
       console.error("Failed to process staging message", {
@@ -207,6 +225,7 @@ async function processLearningMessage(
   folder: MailFolder,
   message: MessageHeader,
   learningMode: LearningMode,
+  targetFolder: string,
   trigger: "alarm" | "manual" | "startup"
 ): Promise<void> {
   console.log("Learning staged mail", {
@@ -214,10 +233,11 @@ async function processLearningMessage(
     messageId: message.id,
     folderName: folder.name,
     learningMode,
+    targetFolder,
     from: extractEmail(message.author),
     subject: message.subject ?? ""
   });
-  const response = await nativeClient.learn(createLearnRuleRequest(message, learningMode));
+  const response = await nativeClient.learn(createLearnRuleRequest(message, learningMode, targetFolder));
   await moveMessageToFolder(folder, message.id, response.targetFolder);
   console.log("Learning move completed", {
     trigger,

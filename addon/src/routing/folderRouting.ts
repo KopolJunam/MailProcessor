@@ -30,8 +30,17 @@ export async function moveMessageToFolder(
     return currentFolder;
   }
 
-  const destinationFolder = await findDestinationFolder(currentFolder.accountId, normalizedTargetFolderPath);
+  const folders = await messenger.folders.query({ accountId: currentFolder.accountId });
+  const destinationFolder = findDestinationFolder(folders, normalizedTargetFolderPath);
   if (destinationFolder == null) {
+    console.error("Destination folder could not be resolved", {
+      messageId,
+      currentFolderName: currentFolder.name,
+      currentFolderPath: currentFolder.path,
+      currentFolderAccountId: currentFolder.accountId,
+      targetFolderPath: normalizedTargetFolderPath,
+      knownFolderPaths: folders.map((folder) => folder.path).sort()
+    });
     throw new Error(`Could not find destination folder '${normalizedTargetFolderPath}' in account ${currentFolder.accountId}`);
   }
 
@@ -111,8 +120,7 @@ export function delay(milliseconds: number): Promise<void> {
   });
 }
 
-async function findDestinationFolder(accountId: string, targetFolderPath: string): Promise<MailFolder | null> {
-  const folders = await messenger.folders.query({ accountId });
+function findDestinationFolder(folders: MailFolder[], targetFolderPath: string): MailFolder | null {
   if (targetFolderPath === CANONICAL_INBOX_TARGET) {
     const inboxFolder = folders.find((folder) => folder.specialUse?.includes("inbox"));
     if (inboxFolder != null) {
