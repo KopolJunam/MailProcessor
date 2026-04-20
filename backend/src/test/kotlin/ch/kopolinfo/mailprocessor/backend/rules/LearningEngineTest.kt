@@ -37,6 +37,10 @@ class LearningEngineTest {
             listOf("thomas.maurer@ergon.ch"),
             repository.findAll().map { it.addressPattern },
         )
+        assertEquals(
+            listOf<String?>(null),
+            repository.findAll().map { it.subjectRegex },
+        )
     }
 
     @Test
@@ -64,6 +68,10 @@ class LearningEngineTest {
         assertEquals(
             listOf("*@ergon.ch"),
             repository.findAll().map { it.addressPattern },
+        )
+        assertEquals(
+            listOf<String?>(null),
+            repository.findAll().map { it.subjectRegex },
         )
     }
 }

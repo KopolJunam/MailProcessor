@@ -15,6 +15,7 @@ class RuleEngineTest {
                     type = "classify-mail",
                     requestId = "request-1",
                     from = "someone@example.invalid",
+                    subject = "",
                 ),
             )
 
@@ -53,6 +54,7 @@ class RuleEngineTest {
                     type = "classify-mail",
                     requestId = "request-2",
                     from = "someone@example.invalid",
+                    subject = "",
                 ),
             )
 

@@ -2,6 +2,7 @@ export interface ClassificationRequest {
   type: "classify-mail";
   requestId: string;
   from: string;
+  subject: string;
 }
 
 export type LearningMode = "use-address" | "use-domain";
@@ -34,6 +35,7 @@ export interface MessageHeader {
   folder?: MailFolder;
   headerMessageId?: string;
   id: number;
+  subject?: string;
   tags: string[];
 }
 

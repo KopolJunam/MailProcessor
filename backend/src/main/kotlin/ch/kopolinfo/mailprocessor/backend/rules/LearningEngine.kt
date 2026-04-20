@@ -20,6 +20,7 @@ class LearningEngine(
 
         rulesRepository.upsert(
             addressPattern = createdPattern,
+            subjectRegex = null,
             targetFolder = INBOX_TARGET,
         )
 

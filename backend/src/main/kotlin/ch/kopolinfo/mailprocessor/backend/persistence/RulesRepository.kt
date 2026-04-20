@@ -6,6 +6,7 @@ import org.jooq.DSLContext
 data class RuleEntry(
     val id: Long,
     val addressPattern: String,
+    val subjectRegex: String?,
     val targetFolder: String,
 )
 
@@ -15,22 +16,31 @@ class RulesRepository(
     fun upsert(
         addressPattern: String,
         targetFolder: String,
+        subjectRegex: String? = null,
     ): RuleEntry {
         val existing =
             dsl
                 .select(
                     RULES.ID,
                     RULES.ADDRESS_PATTERN,
+                    RULES.SUBJECT_REGEX,
                     RULES.TARGET_FOLDER,
                 ).from(RULES)
                 .where(RULES.ADDRESS_PATTERN.eq(addressPattern))
-                .orderBy(RULES.ID.asc())
+                .and(
+                    if (subjectRegex == null) {
+                        RULES.SUBJECT_REGEX.isNull
+                    } else {
+                        RULES.SUBJECT_REGEX.eq(subjectRegex)
+                    },
+                ).orderBy(RULES.ID.asc())
                 .limit(1)
                 .fetchOne()
 
         if (existing == null) {
             return insert(
                 addressPattern = addressPattern,
+                subjectRegex = subjectRegex,
                 targetFolder = targetFolder,
             )
         }
@@ -51,6 +61,7 @@ class RulesRepository(
                 .select(
                     RULES.ID,
                     RULES.ADDRESS_PATTERN,
+                    RULES.SUBJECT_REGEX,
                     RULES.TARGET_FOLDER,
                 ).from(RULES)
                 .where(RULES.ID.eq(existingEntry.id))
@@ -62,13 +73,14 @@ class RulesRepository(
     fun insert(
         addressPattern: String,
         targetFolder: String,
+        subjectRegex: String? = null,
     ): RuleEntry {
         val record =
             dsl
                 .insertInto(RULES)
-                .columns(RULES.ADDRESS_PATTERN, RULES.TARGET_FOLDER)
-                .values(addressPattern, targetFolder)
-                .returning(RULES.ID, RULES.ADDRESS_PATTERN, RULES.TARGET_FOLDER)
+                .columns(RULES.ADDRESS_PATTERN, RULES.SUBJECT_REGEX, RULES.TARGET_FOLDER)
+                .values(addressPattern, subjectRegex, targetFolder)
+                .returning(RULES.ID, RULES.ADDRESS_PATTERN, RULES.SUBJECT_REGEX, RULES.TARGET_FOLDER)
                 .fetchOne() ?: error("Insert into rules did not return a record")
 
         return record.toRuleEntry()
@@ -79,6 +91,7 @@ class RulesRepository(
             .select(
                 RULES.ID,
                 RULES.ADDRESS_PATTERN,
+                RULES.SUBJECT_REGEX,
                 RULES.TARGET_FOLDER,
             ).from(RULES)
             .orderBy(RULES.ID.asc())
@@ -86,8 +99,9 @@ class RulesRepository(
 
     private fun org.jooq.Record.toRuleEntry(): RuleEntry =
         RuleEntry(
-            id = get(RULES.ID)?.toLong() ?: error("Rule id must not be null"),
+            id = get(RULES.ID) ?: error("Rule id must not be null"),
             addressPattern = get(RULES.ADDRESS_PATTERN) ?: error("address_pattern must not be null"),
+            subjectRegex = get(RULES.SUBJECT_REGEX),
             targetFolder = get(RULES.TARGET_FOLDER) ?: error("target_folder must not be null"),
         )
 }

@@ -30,10 +30,48 @@ class DatabaseMailClassifierTest {
                     type = "classify-mail",
                     requestId = "request-1",
                     from = "Thomas.Maurer@ergon.ch",
+                    subject = "Quarterly update",
                 ),
             )
 
         assertEquals("Inbox", response.targetFolder)
         assertEquals("thomas.maurer@ergon.ch", response.matchedRule)
+    }
+
+    @Test
+    fun subjectRegexCanNarrowSenderRule() {
+        val tempDirectory = Files.createTempDirectory("mailprocessor-classifier-subject-test")
+        val support =
+            DatabaseBootstrap.initialize(
+                tempDirectory.resolve("MailProcessor").absolutePathString(),
+            )
+        SqlSchemaInitializer().ensureExists(support.dsl)
+        val repository = RulesRepository(support.dsl)
+        repository.insert("alerts@example.invalid", "Inbox", subjectRegex = "Invoice\\s+#\\d+")
+        repository.insert("alerts@example.invalid", "FallbackInbox")
+
+        val classifier = DatabaseMailClassifier(repository)
+
+        val matchingResponse =
+            classifier.classify(
+                ClassificationRequest(
+                    type = "classify-mail",
+                    requestId = "request-2",
+                    from = "alerts@example.invalid",
+                    subject = "Invoice #4711 available",
+                ),
+            )
+        val nonMatchingResponse =
+            classifier.classify(
+                ClassificationRequest(
+                    type = "classify-mail",
+                    requestId = "request-3",
+                    from = "alerts@example.invalid",
+                    subject = "General notification",
+                ),
+            )
+
+        assertEquals("Inbox", matchingResponse.targetFolder)
+        assertEquals("FallbackInbox", nonMatchingResponse.targetFolder)
     }
 }

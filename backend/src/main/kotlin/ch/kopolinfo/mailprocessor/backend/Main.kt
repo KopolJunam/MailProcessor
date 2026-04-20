@@ -3,12 +3,14 @@ package ch.kopolinfo.mailprocessor.backend
 import ch.kopolinfo.mailprocessor.backend.nativehost.NativeMessagingHost
 import ch.kopolinfo.mailprocessor.backend.persistence.DatabaseBootstrap
 import ch.kopolinfo.mailprocessor.backend.persistence.RulesRepository
+import ch.kopolinfo.mailprocessor.backend.persistence.SqlSchemaInitializer
 import ch.kopolinfo.mailprocessor.backend.rules.DatabaseMailClassifier
 import ch.kopolinfo.mailprocessor.backend.rules.LearningEngine
 import ch.kopolinfo.mailprocessor.backend.service.MailProcessorService
 
 fun main() {
     val databaseSupport = DatabaseBootstrap.initialize()
+    SqlSchemaInitializer().ensureExists(databaseSupport.dsl)
     val rulesRepository = RulesRepository(databaseSupport.dsl)
     val service =
         MailProcessorService(

@@ -31,7 +31,8 @@ function createClassificationRequest(message: MessageHeader): ClassificationRequ
   return {
     type: "classify-mail",
     requestId: nextRequestId(),
-    from: extractEmail(message.author)
+    from: extractEmail(message.author),
+    subject: message.subject ?? ""
   };
 }
 
@@ -58,6 +59,7 @@ async function processMessage(folder: MailFolder, message: MessageHeader): Promi
   console.log("Classifying new mail", {
     messageId: message.id,
     from: request.from,
+    subject: request.subject,
     folderName: folder.name,
     folderPath: folder.path
   });

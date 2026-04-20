@@ -25,10 +25,30 @@ class RulesRepositoryTest {
                 RuleEntry(
                     id = inserted.id,
                     addressPattern = "*@gugus.ch",
+                    subjectRegex = null,
                     targetFolder = "Inbox",
                 ),
             ),
             rules,
+        )
+    }
+
+    @Test
+    fun storesOptionalSubjectRegex() {
+        val tempDirectory = Files.createTempDirectory("mailprocessor-rules-subject-test")
+        val support =
+            DatabaseBootstrap.initialize(
+                tempDirectory.resolve("MailProcessor").absolutePathString(),
+            )
+        SqlSchemaInitializer().ensureExists(support.dsl)
+        val repository = RulesRepository(support.dsl)
+
+        val inserted = repository.insert("alerts@example.invalid", "Invoices", subjectRegex = "Invoice\\s+#\\d+")
+
+        assertEquals("Invoice\\s+#\\d+", inserted.subjectRegex)
+        assertEquals(
+            listOf("Invoice\\s+#\\d+"),
+            repository.findAll().map { it.subjectRegex },
         )
     }
 }

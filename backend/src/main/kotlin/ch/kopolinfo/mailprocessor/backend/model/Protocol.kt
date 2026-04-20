@@ -8,6 +8,7 @@ data class ClassificationRequest(
     val type: String,
     val requestId: String,
     val from: String,
+    val subject: String,
 )
 
 @Serializable

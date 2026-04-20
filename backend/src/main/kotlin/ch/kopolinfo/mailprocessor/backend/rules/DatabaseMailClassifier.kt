@@ -18,15 +18,16 @@ class DatabaseMailClassifier(
 
 private fun List<RuleEntry>.toMailRules(): List<MailRule> =
     sortedWith(
-        compareBy<RuleEntry>(
+        compareBy(
             { if (it.addressPattern.startsWith("*@")) 1 else 0 },
+            { if (it.subjectRegex == null) 1 else 0 },
             { it.id },
         ),
     ).map { entry ->
         MailRule { request ->
-            if (entry.matches(request.from)) {
+            if (entry.matches(request.from, request.subject)) {
                 RuleMatch(
-                    name = entry.addressPattern,
+                    name = entry.describe(),
                     targetFolder = entry.targetFolder,
                 )
             } else {
@@ -35,13 +36,27 @@ private fun List<RuleEntry>.toMailRules(): List<MailRule> =
         }
     }
 
-private fun RuleEntry.matches(address: String): Boolean {
+private fun RuleEntry.matches(
+    address: String,
+    subject: String,
+): Boolean {
     val normalizedAddress = address.trim().lowercase()
     val normalizedPattern = addressPattern.trim().lowercase()
 
-    return if (normalizedPattern.startsWith("*@")) {
-        normalizedAddress.endsWith(normalizedPattern.removePrefix("*"))
-    } else {
-        normalizedAddress == normalizedPattern
+    val senderMatches =
+        if (normalizedPattern.startsWith("*@")) {
+            normalizedAddress.endsWith(normalizedPattern.removePrefix("*"))
+        } else {
+            normalizedAddress == normalizedPattern
+        }
+
+    if (!senderMatches) {
+        return false
     }
+
+    val configuredSubjectRegex = subjectRegex?.trim()?.takeIf { it.isNotEmpty() } ?: return true
+    return Regex(configuredSubjectRegex).containsMatchIn(subject)
 }
+
+private fun RuleEntry.describe(): String =
+    subjectRegex?.trim()?.takeIf { it.isNotEmpty() }?.let { "$addressPattern && subject~/$it/" } ?: addressPattern
