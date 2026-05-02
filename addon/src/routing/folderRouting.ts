@@ -33,14 +33,19 @@ export async function moveMessageToFolder(
   const folders = await messenger.folders.query({ accountId: currentFolder.accountId });
   const destinationFolder = findDestinationFolder(folders, normalizedTargetFolderPath);
   if (destinationFolder == null) {
+    const similarFolderPaths = findSimilarFolderPaths(folders, normalizedTargetFolderPath);
     console.error("Destination folder could not be resolved", {
       messageId,
       currentFolderName: currentFolder.name,
       currentFolderPath: currentFolder.path,
       currentFolderAccountId: currentFolder.accountId,
       targetFolderPath: normalizedTargetFolderPath,
-      knownFolderPaths: folders.map((folder) => folder.path).sort()
+      knownFolderPaths: folders.map((folder) => folder.path).sort(),
+      similarFolderPaths
     });
+    console.error(
+      `Destination folder lookup details for ${normalizedTargetFolderPath}: similar=${JSON.stringify(similarFolderPaths)}`
+    );
     throw new Error(`Could not find destination folder '${normalizedTargetFolderPath}' in account ${currentFolder.accountId}`);
   }
 
@@ -128,7 +133,8 @@ function findDestinationFolder(folders: MailFolder[], targetFolderPath: string):
     }
   }
 
-  return folders.find((folder) => folder.path === targetFolderPath) ?? null;
+  const canonicalTargetFolderPath = canonicalizeFolderPath(targetFolderPath);
+  return folders.find((folder) => canonicalizeFolderPath(folder.path) === canonicalTargetFolderPath) ?? null;
 }
 
 function isAlreadyInTargetFolder(folder: MailFolder, targetFolderPath: string): boolean {
@@ -136,7 +142,7 @@ function isAlreadyInTargetFolder(folder: MailFolder, targetFolderPath: string): 
     return true;
   }
 
-  return folder.path === targetFolderPath;
+  return canonicalizeFolderPath(folder.path) === canonicalizeFolderPath(targetFolderPath);
 }
 
 function normalizeTargetFolderPath(targetFolderPath: string): string {
@@ -145,5 +151,61 @@ function normalizeTargetFolderPath(targetFolderPath: string): string {
     throw new Error("Target folder path must not be blank");
   }
 
-  return trimmedTargetFolderPath.startsWith("/") ? trimmedTargetFolderPath : `/${trimmedTargetFolderPath}`;
+  return canonicalizeFolderPath(trimmedTargetFolderPath);
+}
+
+function canonicalizeFolderPath(folderPath: string): string {
+  const decodedFolderPath = decodeImapModifiedUtf7(folderPath);
+  const withLeadingSlash = decodedFolderPath.startsWith("/") ? decodedFolderPath : `/${decodedFolderPath}`;
+  const withoutTrailingSlash =
+    withLeadingSlash.length > 1 && withLeadingSlash.endsWith("/")
+      ? withLeadingSlash.slice(0, -1)
+      : withLeadingSlash;
+
+  return withoutTrailingSlash.normalize("NFC");
+}
+
+function findSimilarFolderPaths(folders: MailFolder[], targetFolderPath: string): string[] {
+  const targetSegments = canonicalizeFolderPath(targetFolderPath)
+    .toLocaleLowerCase()
+    .split("/")
+    .filter((segment) => segment.length > 0);
+
+  if (targetSegments.length === 0) {
+    return [];
+  }
+
+  return folders
+    .map((folder) => canonicalizeFolderPath(folder.path))
+    .filter((folderPath) => {
+      const lowercaseFolderPath = folderPath.toLocaleLowerCase();
+      return targetSegments.some((segment) => lowercaseFolderPath.includes(segment));
+    })
+    .sort();
+}
+
+function decodeImapModifiedUtf7(value: string): string {
+  return value.replace(/&([^-]*)-/g, (_match, encodedSection: string) => {
+    if (encodedSection.length === 0) {
+      return "&";
+    }
+
+    const base64 = encodedSection.replace(/,/g, "/");
+    const paddedBase64 = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const binary = atob(paddedBase64);
+    const codeUnits: number[] = [];
+
+    for (let index = 0; index < binary.length; index += 2) {
+      const highByte = binary.charCodeAt(index);
+      const lowByte = binary.charCodeAt(index + 1);
+
+      if (Number.isNaN(lowByte)) {
+        throw new Error(`Invalid IMAP modified UTF-7 sequence '${encodedSection}'`);
+      }
+
+      codeUnits.push((highByte << 8) | lowByte);
+    }
+
+    return String.fromCharCode(...codeUnits);
+  });
 }
