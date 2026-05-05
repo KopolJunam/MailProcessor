@@ -33,6 +33,7 @@ export type BackendResponse = ClassificationResponse | LearnRuleResponse;
 
 export interface MessageHeader {
   author: string;
+  date?: Date;
   folder?: MailFolder;
   headerMessageId?: string;
   id: number;
@@ -50,7 +51,21 @@ export interface MailFolder {
   specialUse?: string[];
 }
 
+export interface FolderQueryInfo {
+  accountId?: string;
+  path?: string;
+  specialUse?: string[];
+}
+
 export interface MessageList {
   id: string | null;
   messages: MessageHeader[];
+}
+
+export interface MessageQueryInfo {
+  accountId?: string | string[];
+  folderId?: string | string[];
+  fromDate?: Date;
+  headerMessageId?: string;
+  unread?: boolean;
 }

@@ -23,6 +23,7 @@ interface Alarm {
 
 interface ThunderbirdMessenger {
   accounts: {
+    getDefault(): Promise<MailAccount | null>;
     list(): Promise<MailAccount[]>;
   };
   action: {
@@ -37,7 +38,7 @@ interface ThunderbirdMessenger {
     };
   };
   folders: {
-    query(queryInfo?: { accountId?: string }): Promise<import("./protocol").MailFolder[]>;
+    query(queryInfo?: import("./protocol").FolderQueryInfo): Promise<import("./protocol").MailFolder[]>;
   };
   messages: {
     onNewMailReceived: {
@@ -51,11 +52,7 @@ interface ThunderbirdMessenger {
         ) => void
       ): void;
     };
-    query(queryInfo?: {
-      accountId?: string | string[];
-      folderId?: string | string[];
-      headerMessageId?: string;
-    }): Promise<import("./protocol").MessageList>;
+    query(queryInfo?: import("./protocol").MessageQueryInfo): Promise<import("./protocol").MessageList>;
     continueList(listId: string): Promise<import("./protocol").MessageList>;
     move(messageIds: import("./protocol").MessageId[], destination: string): Promise<void>;
   };

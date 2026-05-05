@@ -1,4 +1,4 @@
-import type { MailFolder, MessageHeader, MessageId } from "../types/protocol";
+import type { FolderQueryInfo, MailFolder, MessageHeader, MessageId } from "../types/protocol";
 
 const CANONICAL_INBOX_TARGET = "/Inbox";
 
@@ -30,9 +30,15 @@ export async function moveMessageToFolder(
     return currentFolder;
   }
 
-  const folders = await messenger.folders.query({ accountId: currentFolder.accountId });
-  const destinationFolder = findDestinationFolder(folders, normalizedTargetFolderPath);
+  console.log("Resolving destination folder", {
+    messageId,
+    accountId: currentFolder.accountId,
+    targetFolderPath: normalizedTargetFolderPath
+  });
+
+  const destinationFolder = await resolveDestinationFolder(currentFolder.accountId, normalizedTargetFolderPath);
   if (destinationFolder == null) {
+    const folders = await messenger.folders.query({ accountId: currentFolder.accountId });
     const similarFolderPaths = findSimilarFolderPaths(folders, normalizedTargetFolderPath);
     console.error("Destination folder could not be resolved", {
       messageId,
@@ -64,6 +70,47 @@ export async function moveMessageToFolder(
     destinationFolderId: destinationFolder.id
   });
   return destinationFolder;
+}
+
+async function resolveDestinationFolder(accountId: string, targetFolderPath: string): Promise<MailFolder | null> {
+  if (targetFolderPath === CANONICAL_INBOX_TARGET) {
+    const inboxMatches = await messenger.folders.query({
+      accountId,
+      specialUse: ["inbox"]
+    });
+    if (inboxMatches[0] != null) {
+      console.log("Resolved inbox destination folder by specialUse", {
+        accountId,
+        targetFolderPath,
+        destinationFolderId: inboxMatches[0].id,
+        destinationFolderPath: inboxMatches[0].path
+      });
+      return inboxMatches[0];
+    }
+  }
+
+  const exactPathQuery: FolderQueryInfo = {
+    accountId,
+    path: targetFolderPath
+  };
+  const exactPathMatches = await messenger.folders.query(exactPathQuery);
+  if (exactPathMatches[0] != null) {
+    console.log("Resolved destination folder by exact path query", {
+      accountId,
+      targetFolderPath,
+      matchCount: exactPathMatches.length,
+      destinationFolderId: exactPathMatches[0].id,
+      destinationFolderPath: exactPathMatches[0].path
+    });
+    return exactPathMatches[0];
+  }
+
+  console.warn("Exact path folder query returned no result, falling back to account folder scan", {
+    accountId,
+    targetFolderPath
+  });
+  const folders = await messenger.folders.query({ accountId });
+  return findDestinationFolder(folders, targetFolderPath);
 }
 
 export async function resolveMessageIdInFolder(message: MessageHeader): Promise<MessageId> {

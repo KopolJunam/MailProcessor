@@ -28,10 +28,31 @@ Add-on bauen:
 cd addon
 npm.cmd install
 npm.cmd run build
+npm.cmd run package
 ```
 
 Native Host unter Windows registrieren:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\windows\Register-NativeHost.ps1
+```
+
+Lokalen Installationsablauf fuer Thunderbird vorbereiten:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\windows\Install-Local.ps1
+```
+
+Der Ablauf paketiert das Add-on als `.xpi`, baut den nativen Host und registriert ihn unter Windows. Anschliessend kann die erzeugte `.xpi` in Thunderbird ueber "Install Add-on From File..." installiert werden.
+
+Installation verifizieren:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\windows\Test-LocalInstall.ps1
+```
+
+Lokale Native-Host-Registrierung entfernen:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\windows\Uninstall-Local.ps1
 ```
